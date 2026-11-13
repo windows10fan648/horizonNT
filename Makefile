@@ -1,12 +1,23 @@
-CC      := gcc
-LD      := ld
-AR      := ar
-OBJCOPY := objcopy
-QEMU    := qemu-system-x86_64
+CC           := gcc
+LD           := ld
+AR           := ar
+OBJCOPY      := objcopy
+QEMU         := qemu-system-x86_64
+GRUB_MKIMAGE ?= grub-mkimage
+GRUB_DIR     ?= /usr/lib/grub/i386-pc
+XORRISO      ?= xorriso
 
 BUILD    := build
 LIBH_DIR := lib/libhorizon
 LIBH_INC := $(LIBH_DIR)/include
+
+ISO       := $(BUILD)/horizonnt.iso
+ISO_DIR   := $(BUILD)/iso
+GRUB_IMG  := $(ISO_DIR)/boot/grub/eltorito.img
+GRUB_MBR  := $(GRUB_DIR)/boot_hybrid.img
+GRUB_CFG  := boot/grub.cfg
+GRUB_MODULES := biosdisk iso9660 part_msdos normal configfile search echo test \
+                serial terminal multiboot
 
 KCFLAGS := -std=gnu11 -m64 -ffreestanding -fno-stack-protector -fno-pic -fno-pie \
            -mcmodel=kernel -mno-red-zone -mno-mmx -mno-sse -mno-sse2 \
@@ -64,7 +75,7 @@ LIBH_OBJS := $(patsubst %.c,$(BUILD)/%.o,$(LIBH_C_SRCS)) \
              $(patsubst %.S,$(BUILD)/%.o,$(LIBH_S_SRCS))
 LIBH := $(BUILD)/libhorizon.a
 
-.PHONY: all clean run run-nographic test
+.PHONY: all clean run run-nographic test iso
 
 all: $(BUILD)/horizonnt.elf
 
@@ -124,6 +135,32 @@ $(BUILD)/horizonnt64.elf: $(K_OBJS) linker.ld
 
 $(BUILD)/horizonnt.elf: $(BUILD)/horizonnt64.elf
 	$(OBJCOPY) -O elf32-i386 $< $@
+
+# Bootable BIOS ISO: an El Torito GRUB core image plus the Multiboot kernel.
+$(GRUB_IMG):
+	@if [ ! -f "$(GRUB_DIR)/cdboot.img" ]; then \
+	    echo "error: GRUB i386-pc modules not found in $(GRUB_DIR)" >&2; \
+	    echo "       install grub-pc-bin or set GRUB_DIR=/path/to/grub/i386-pc" >&2; \
+	    exit 1; \
+	fi
+	@mkdir -p $(dir $@)
+	$(GRUB_MKIMAGE) -O i386-pc-eltorito -o $@ -p /boot/grub $(GRUB_MODULES)
+
+$(ISO): $(BUILD)/horizonnt.elf $(GRUB_CFG) $(GRUB_IMG)
+	@mkdir -p $(ISO_DIR)/boot/grub
+	cp $(BUILD)/horizonnt.elf $(ISO_DIR)/boot/horizonnt.elf
+	cp $(GRUB_CFG) $(ISO_DIR)/boot/grub/grub.cfg
+	$(XORRISO) -as mkisofs \
+	    -iso-level 3 -full-iso9660-filenames -volid HORIZONNT \
+	    -o $@ \
+	    -b boot/grub/eltorito.img -no-emul-boot \
+	    -boot-load-size 4 -boot-info-table \
+	    --grub2-boot-info \
+	    $(if $(wildcard $(GRUB_MBR)),--grub2-mbr $(GRUB_MBR),) \
+	    $(ISO_DIR)
+
+iso: $(ISO)
+	@echo "Bootable ISO: $(ISO)"
 
 test: all
 	$(QEMU) -kernel $(BUILD)/horizonnt.elf -append autotest -m 256M -nographic -no-reboot
