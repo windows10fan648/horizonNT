@@ -42,6 +42,10 @@ static uint64_t setup_initial_kstack(uint8_t *kstack_base, uint64_t entry_addr) 
     uint64_t sp = (uint64_t)kstack_base + KTHREAD_STACK_SIZE;
     sp &= ~0xFULL;
 
+    /* Reserve one qword so the C entry point observes rsp % 16 == 8, matching
+     * the SysV ABI after ctx_switch pops the saved registers and returns. */
+    sp -= sizeof(uint64_t);
+
     /* Return address popped by ctx_switch `ret` */
     sp -= sizeof(uint64_t);
     *(uint64_t *)sp = entry_addr;

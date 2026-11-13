@@ -140,3 +140,8 @@ void tss_set_rsp0(uint64_t rsp0) {
     g_tss.rsp0 = rsp0;
     g_percpu.kernel_rsp = rsp0;
 }
+
+bool gdt_gs_state_valid(void) {
+    return rdmsr(MSR_GS_BASE) == (uint64_t)&g_percpu &&
+           rdmsr(MSR_KERNEL_GS_BASE) == 0;
+}

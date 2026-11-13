@@ -12,13 +12,13 @@
 - **Object Manager (`kernel/ob/`)**: NT-style hierarchical namespace (`\Device`, `\Driver`, `\KernelObjects`, `\SystemRoot`), reference-counted typed kernel objects, and per-process handle tables with access-mask validation (`GENERIC_READ`, `GENERIC_WRITE`).
 - **Process & Thread Executive (`kernel/ps/`)**: Separate `KPROCESS` and `KTHREAD` abstractions, preemptive priority round-robin scheduler, kernel threads, and Ring-3 user-mode threads (`CS=0x23`, `SS=0x1B`).
 - **I/O Manager & VFS (`kernel/io/`, `kernel/fs/`)**: Driver/Device object registration and IRP dispatch (`IRP_MJ_CREATE`, `IRP_MJ_READ`, `IRP_MJ_WRITE`, `IRP_MJ_CLOSE`) unified with an in-memory VFS (`RamFS`).
-- **ELF64 Loader & Syscalls (`kernel/exec/`, `user/`)**: Loads Ring-3 ELF64 binaries (embedded `/bin/init`) into isolated address spaces with `SYS_*` system services.
+- **ELF64 Loader & Syscalls (`kernel/exec/`, `user/`)**: Loads Ring-3 ELF64 binaries (embedded `/bin/init` and quiet `/bin/spawnprobe` regression probe) into isolated address spaces with `SYS_*` system services.
 - **Interactive Shell (`hntsh`)**: Built-in kernel shell accessible over serial or VGA/PS2 keyboard (`help`, `uname`, `mem`, `obj`, `ps`, `ls`, `cat`, `write`, `spawn`, `test`, `uptime`, `reboot`, `shutdown`).
 
 ## Building and Running
 
 ```sh
-make          # Build build/horizonnt.elf (and Ring-3 user/init.elf)
+make          # Build build/horizonnt.elf (and Ring-3 init + spawnprobe ELFs)
 make test     # Boot in QEMU with autotest and verify all subsystems
 make run      # Boot interactively with VGA window + serial stdio
 make run-nographic  # Boot interactively in terminal via serial console

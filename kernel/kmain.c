@@ -14,6 +14,8 @@
 
 extern const uint8_t embedded_init_elf_start[];
 extern const uint8_t embedded_init_elf_end[];
+extern const uint8_t embedded_spawnprobe_elf_start[];
+extern const uint8_t embedded_spawnprobe_elf_end[];
 
 static bool cmdline_has(const multiboot_info_t *mb, const char *needle) {
     if (!mb || !(mb->flags & MULTIBOOT_INFO_CMDLINE) || mb->cmdline == 0) return false;
@@ -60,8 +62,11 @@ void kmain(uint32_t mb_magic, const multiboot_info_t *mb_info) {
     fs_init();
 
     size_t init_sz = (size_t)(embedded_init_elf_end - embedded_init_elf_start);
+    size_t probe_sz = (size_t)(embedded_spawnprobe_elf_end - embedded_spawnprobe_elf_start);
     KASSERT(NT_SUCCESS(fs_populate_file("/bin/init", embedded_init_elf_start, init_sz, true)));
-    kprintf("[OB/IO/FS] Object Manager, IRP Drivers, RamFS (/bin/init = %zu B) online.\n", init_sz);
+    KASSERT(NT_SUCCESS(fs_populate_file("/bin/spawnprobe", embedded_spawnprobe_elf_start, probe_sz, true)));
+    kprintf("[OB/IO/FS] Object Manager, IRP Drivers, RamFS (/bin/init = %zu B, /bin/spawnprobe = %zu B) online.\n",
+            init_sz, probe_sz);
 
     ps_init();
     syscall_init();

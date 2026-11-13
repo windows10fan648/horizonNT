@@ -11,6 +11,7 @@
 #include <horizon/console.h>
 
 static volatile uint64_t g_kthread_hits[2] = { 0, 0 };
+extern volatile uint64_t g_syscall_stack_misaligned;
 
 static void test_worker_thread(void *arg) {
     uint64_t idx = (uint64_t)arg;
@@ -18,6 +19,17 @@ static void test_worker_thread(void *arg) {
         __atomic_add_fetch(&g_kthread_hits[idx], 1, __ATOMIC_RELAXED);
         ps_sleep_ms(8);
     }
+}
+
+static bool run_ring3_binary(const char *path, int32_t expected_exit) {
+    kprocess_t *proc = NULL;
+    NTSTATUS st = elf_spawn_from_fs(path, &proc);
+    if (!NT_SUCCESS(st) || !proc) return false;
+
+    for (int wait = 0; wait < 100 && !proc->exited; wait++) {
+        ps_sleep_ms(10);
+    }
+    return proc->exited && proc->exit_code == expected_exit;
 }
 
 bool horizon_run_self_tests(void) {
@@ -98,16 +110,23 @@ bool horizon_run_self_tests(void) {
     CHECK("Preemptive kernel multithreading", g_kthread_hits[0] == 5 && g_kthread_hits[1] == 5);
 
     /* 6. Ring-3 ELF64 User Process + SYSCALL/SYSRET + int 0x80 */
-    kprocess_t *uproc = NULL;
-    st = elf_spawn_from_fs("/bin/init", &uproc);
-    bool user_ok = NT_SUCCESS(st) && uproc != NULL;
-    if (user_ok) {
-        for (int wait = 0; wait < 100 && !uproc->exited; wait++) {
-            ps_sleep_ms(10);
-        }
-        user_ok = uproc->exited && (uproc->exit_code == 42);
-    }
+    g_syscall_stack_misaligned = 0;
+    bool user_ok = run_ring3_binary("/bin/init", 42);
     CHECK("Ring-3 ELF64 user process & syscalls (exit=42)", user_ok);
+
+    /* 7. Syscall entry alignment and GS-base state after a Ring-3 cycle */
+    bool abi_ok = (g_syscall_stack_misaligned == 0) && gdt_gs_state_valid();
+    CHECK("Syscall ABI: stack alignment & GS base", abi_ok);
+
+    /* 8. Repeated Ring-3 launch: the second user thread starts after the first
+     * exits from a syscall context, exercising GS restoration across switches. */
+    g_syscall_stack_misaligned = 0;
+    bool repeat_ok = gdt_gs_state_valid();
+    repeat_ok = repeat_ok && run_ring3_binary("/bin/spawnprobe", 7);
+    repeat_ok = repeat_ok && (g_syscall_stack_misaligned == 0) && gdt_gs_state_valid();
+    repeat_ok = repeat_ok && run_ring3_binary("/bin/spawnprobe", 7);
+    repeat_ok = repeat_ok && (g_syscall_stack_misaligned == 0) && gdt_gs_state_valid();
+    CHECK("Repeated Ring-3 launch & GS restoration", repeat_ok);
 
     kprintf("[TEST] Summary: %d passed, %d failed\n\n", passed, failed);
     return failed == 0;

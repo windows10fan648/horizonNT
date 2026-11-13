@@ -45,7 +45,9 @@ K_S_SRCS := \
 
 K_OBJS := $(patsubst %.c,$(BUILD)/%.o,$(K_C_SRCS)) $(patsubst %.S,$(BUILD)/%.o,$(K_S_SRCS))
 
-U_OBJS := $(BUILD)/user/crt0.o $(BUILD)/user/init.o
+U_COMMON_OBJS := $(BUILD)/user/crt0.o
+U_OBJS := $(U_COMMON_OBJS) $(BUILD)/user/init.o
+SPAWNPROBE_OBJS := $(U_COMMON_OBJS) $(BUILD)/user/spawnprobe.o
 
 .PHONY: all clean run run-nographic test
 
@@ -59,9 +61,17 @@ $(BUILD)/user/init.o: user/init.c
 	@mkdir -p $(dir $@)
 	$(CC) $(UCFLAGS) -c $< -o $@
 
+$(BUILD)/user/spawnprobe.o: user/spawnprobe.c
+	@mkdir -p $(dir $@)
+	$(CC) $(UCFLAGS) -c $< -o $@
+
 $(BUILD)/init.elf: $(U_OBJS) user/user.ld
 	@mkdir -p $(dir $@)
 	$(LD) $(ULDFLAGS) $(U_OBJS) -o $@
+
+$(BUILD)/spawnprobe.elf: $(SPAWNPROBE_OBJS) user/user.ld
+	@mkdir -p $(dir $@)
+	$(LD) $(ULDFLAGS) $(SPAWNPROBE_OBJS) -o $@
 
 $(BUILD)/%.o: %.c
 	@mkdir -p $(dir $@)
@@ -71,7 +81,7 @@ $(BUILD)/%.o: %.S
 	@mkdir -p $(dir $@)
 	$(CC) $(KASFLAGS) -c $< -o $@
 
-$(BUILD)/kernel/exec/embedded_user.o: $(BUILD)/init.elf
+$(BUILD)/kernel/exec/embedded_user.o: $(BUILD)/init.elf $(BUILD)/spawnprobe.elf
 
 $(BUILD)/horizonnt64.elf: $(K_OBJS) linker.ld
 	$(LD) $(KLDFLAGS) $(K_OBJS) -o $@

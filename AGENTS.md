@@ -13,7 +13,7 @@ make test     # boot in QEMU with autotest; must exit 0
 `make test` is the source of truth. It must end with:
 
 ```text
-[TEST] Summary: 6 passed, 0 failed
+[TEST] Summary: 8 passed, 0 failed
 [AUTOTEST] Result: ALL_TESTS_PASSED
 ```
 
@@ -72,7 +72,7 @@ line was not detected or was corrupted.
 ## Build system notes
 
 - Kernel C sources are listed in `K_C_SRCS`; assembly in `K_S_SRCS`; user
-  objects in `U_OBJS` (`Makefile`).
+  objects in `U_OBJS` / `SPAWNPROBE_OBJS` (`Makefile`).
 - Add any new kernel source to those lists, or it will not be compiled.
 - Kernel C flags include `-std=gnu11 -ffreestanding -Wall -Wextra -Werror`,
   `-mcmodel=kernel`, `-mno-red-zone`, and `-mno-mmx -mno-sse -mno-sse2`.
@@ -80,8 +80,9 @@ line was not detected or was corrupted.
 - Kernel assembly is compiled with only `-m64 -Iinclude`.
 - User code uses `UCFLAGS` and must remain freestanding; it cannot include
   kernel headers or use libc.
-- `kernel/exec/embedded_user.S` embeds `build/init.elf` with `.incbin`.
-  Rebuild `/bin/init` via `make all`; do not commit the generated binary.
+- `kernel/exec/embedded_user.S` embeds `build/init.elf` and
+  `build/spawnprobe.elf` with `.incbin`. Rebuild them via `make all`; do not
+  commit the generated binaries.
 - Final kernel linking is `-nostdlib`. Avoid introducing dependencies on libc
   or compiler runtime helpers (for example 128-bit division or float
   formatting) unless the build system is updated deliberately.
@@ -200,7 +201,7 @@ writing them on behalf of Ring-3.
 Before finishing a change:
 
 1. Run `make clean && make all`. It must complete with no warnings or errors.
-2. Run `make test`. It must exit `0` and print `6 passed, 0 failed` and
+2. Run `make test`. It must exit `0` and print `8 passed, 0 failed` and
    `ALL_TESTS_PASSED`.
 3. If the change affects boot, interrupts, paging, scheduling, syscalls, or
    user mode, check the serial log for panics or unexpected output beyond the

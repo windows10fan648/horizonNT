@@ -80,6 +80,7 @@ static inline void hal_hlt(void) { __asm__ volatile ("hlt"); }
 
 void gdt_init(void);
 void tss_set_rsp0(uint64_t rsp0);
+bool gdt_gs_state_valid(void);
 
 /* IDT / PIC / PIT / Keyboard / Serial / VGA */
 void idt_init(void);

@@ -1,3 +1,9 @@
+.section .data
+.align 8
+.globl g_syscall_stack_misaligned
+g_syscall_stack_misaligned:
+    .quad 0
+
 .section .text
 .code64
 
@@ -42,10 +48,17 @@ syscall_entry:
     movq %rdi, %rsi   /* a1 */
     movq %rax, %rdi   /* num */
 
+    /* SysV ABI requires rsp % 16 == 0 before the call. */
+    subq $8, %rsp
+    testq $0xF, %rsp
+    jz 1f
+    movq $1, g_syscall_stack_misaligned(%rip)
+1:
     sti
     cld
     call syscall_dispatch
     cli
+    addq $8, %rsp
 
     popq %r15
     popq %r14
