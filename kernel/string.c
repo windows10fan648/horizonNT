@@ -113,7 +113,7 @@ static void out_ch(fmt_out_t *o, char c) {
 }
 
 static void out_num(fmt_out_t *o, uint64_t val, uint32_t base, bool neg,
-                    bool upper, int width, char pad) {
+                    bool upper, int width, char pad, bool left) {
     char tmp[32];
     const char *digits = upper ? "0123456789ABCDEF" : "0123456789abcdef";
     int idx = 0;
@@ -125,11 +125,21 @@ static void out_num(fmt_out_t *o, uint64_t val, uint32_t base, bool neg,
             val /= base;
         }
     }
+
     int total = idx + (neg ? 1 : 0);
-    if (neg && pad == '0') out_ch(o, '-');
-    for (int i = total; i < width; i++) out_ch(o, pad);
-    if (neg && pad != '0') out_ch(o, '-');
+    if (!left) {
+        if (neg && pad == '0') out_ch(o, '-');
+        for (int i = total; i < width; i++) out_ch(o, pad);
+        if (neg && pad != '0') out_ch(o, '-');
+    } else if (neg) {
+        out_ch(o, '-');
+    }
+
     while (idx > 0) out_ch(o, tmp[--idx]);
+
+    if (left) {
+        for (int i = total; i < width; i++) out_ch(o, ' ');
+    }
 }
 
 int vsnprintf(char *buf, size_t size, const char *fmt, va_list ap) {
@@ -142,10 +152,19 @@ int vsnprintf(char *buf, size_t size, const char *fmt, va_list ap) {
         }
         p++;
         char pad = ' ';
-        if (*p == '0') {
-            pad = '0';
-            p++;
+        bool left = false;
+        for (;;) {
+            if (*p == '-') {
+                left = true;
+                p++;
+            } else if (*p == '0') {
+                pad = '0';
+                p++;
+            } else {
+                break;
+            }
         }
+        if (left) pad = ' ';
         int width = 0;
         while (*p >= '0' && *p <= '9') {
             width = width * 10 + (*p - '0');
@@ -172,8 +191,13 @@ int vsnprintf(char *buf, size_t size, const char *fmt, va_list ap) {
                 const char *s = va_arg(ap, const char *);
                 if (!s) s = "(null)";
                 int len = (int)strlen(s);
+                if (!left) {
+                    for (int i = len; i < width; i++) out_ch(&o, ' ');
+                }
                 while (*s) out_ch(&o, *s++);
-                for (int i = len; i < width; i++) out_ch(&o, ' ');
+                if (left) {
+                    for (int i = len; i < width; i++) out_ch(&o, ' ');
+                }
                 break;
             }
             case 'd':
@@ -183,14 +207,14 @@ int vsnprintf(char *buf, size_t size, const char *fmt, va_list ap) {
                                             : va_arg(ap, int);
                 bool neg = v < 0;
                 uint64_t uv = neg ? (uint64_t)(-(v + 1)) + 1ULL : (uint64_t)v;
-                out_num(&o, uv, 10, neg, false, width, pad);
+                out_num(&o, uv, 10, neg, false, width, pad, left);
                 break;
             }
             case 'u': {
                 uint64_t v = (long_cnt >= 2) ? va_arg(ap, uint64_t)
                            : (long_cnt == 1) ? (uint64_t)va_arg(ap, unsigned long)
                                              : (uint64_t)va_arg(ap, unsigned int);
-                out_num(&o, v, 10, false, false, width, pad);
+                out_num(&o, v, 10, false, false, width, pad, left);
                 break;
             }
             case 'x':
@@ -198,14 +222,14 @@ int vsnprintf(char *buf, size_t size, const char *fmt, va_list ap) {
                 uint64_t v = (long_cnt >= 2) ? va_arg(ap, uint64_t)
                            : (long_cnt == 1) ? (uint64_t)va_arg(ap, unsigned long)
                                              : (uint64_t)va_arg(ap, unsigned int);
-                out_num(&o, v, 16, false, (*p == 'X'), width, pad);
+                out_num(&o, v, 16, false, (*p == 'X'), width, pad, left);
                 break;
             }
             case 'p': {
                 uint64_t v = (uint64_t)(uintptr_t)va_arg(ap, void *);
                 out_ch(&o, '0');
                 out_ch(&o, 'x');
-                out_num(&o, v, 16, false, false, 16, '0');
+                out_num(&o, v, 16, false, false, 16, '0', false);
                 break;
             }
             default:

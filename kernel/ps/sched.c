@@ -147,11 +147,15 @@ uint64_t ps_thread_count(void) {
 
 void sched_dump_tasks(void) {
     static const char *state_str[] = { "READY", "RUNNING", "BLOCKED", "TERM" };
-    kprintf("%-5s %-5s %-18s %-14s %-8s %-4s %-8s\n",
+
+    /* Drop terminated threads so the listing reflects live tasks only. */
+    sched_reap();
+
+    kprintf("%-5s %-5s %-18s %-14s %-8s %-4s %s\n",
             "PID", "TID", "THREAD", "PROCESS", "STATE", "PRI", "TICKS");
     uint64_t flags = irq_save();
     for (kthread_t *t = g_thread_list; t; t = t->sched_next) {
-        kprintf("%-5llu %-5llu %-18s %-14s %-8s %-4u %-8llu\n",
+        kprintf("%-5llu %-5llu %-18s %-14s %-8s %-4u %llu\n",
                 t->process ? t->process->pid : 0,
                 t->tid,
                 t->name,
