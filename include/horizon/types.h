@@ -5,6 +5,8 @@
 #include <stdbool.h>
 #include <stdarg.h>
 
+#include <horizon/abi.h>
+
 typedef uint64_t phys_addr_t;
 typedef uint64_t virt_addr_t;
 
@@ -31,11 +33,11 @@ typedef uint32_t ACCESS_MASK;
 #define ARRAY_SIZE(a) (sizeof(a) / sizeof((a)[0]))
 #define UNUSED(x)     ((void)(x))
 
-/* Generic access rights (NT-inspired) */
-#define GENERIC_READ    (1U << 31)
-#define GENERIC_WRITE   (1U << 30)
-#define GENERIC_EXECUTE (1U << 29)
-#define GENERIC_ALL     (1U << 28)
+/* Generic access rights (NT-inspired), shared with libHorizon. */
+#define GENERIC_READ    HNT_ACCESS_READ
+#define GENERIC_WRITE   HNT_ACCESS_WRITE
+#define GENERIC_EXECUTE HNT_ACCESS_EXECUTE
+#define GENERIC_ALL     HNT_ACCESS_ALL
 
 #define HNT_PACKED   __attribute__((packed))
 #define HNT_ALIGNED(x) __attribute__((aligned(x)))

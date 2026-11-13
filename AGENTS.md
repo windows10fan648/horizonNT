@@ -13,7 +13,7 @@ make test     # boot in QEMU with autotest; must exit 0
 `make test` is the source of truth. It must end with:
 
 ```text
-[TEST] Summary: 8 passed, 0 failed
+[TEST] Summary: 9 passed, 0 failed
 [AUTOTEST] Result: ALL_TESTS_PASSED
 ```
 
@@ -27,19 +27,20 @@ system kernel. It is **not** a Linux userspace project:
 - Boots via Multiboot1 and runs in the higher half.
 - Contains its own PMM, 4-level paging VMM, kernel heap, object manager,
   process/thread scheduler, I/O manager, RamFS, ELF64 loader, syscalls, shell,
-  and a small embedded Ring-3 init process.
-- Has no libc, no libgcc, no host runtime, no dynamic linker, and no external
-  dependencies beyond GCC/binutils and QEMU.
+  embedded Ring-3 programs, and the libHorizon user runtime.
+- Has no system libc, no libgcc, no host runtime, no dynamic linker, and no
+  external dependencies beyond GCC/binutils and QEMU. libHorizon is the
+  freestanding Ring-3 runtime statically linked into user programs.
 
 Read `README.md` for the high-level architecture.
 
 ## Toolchain and commands
 
-Required tools: `make`, `gcc`, `ld`, `objcopy`, `qemu-system-x86_64`.
+Required tools: `make`, `gcc`, `ld`, `ar`, `objcopy`, `qemu-system-x86_64`.
 
 | Command | Purpose |
 | --- | --- |
-| `make all` | Build the kernel and embedded user `/bin/init`. |
+| `make all` | Build the kernel and embedded user programs (`/bin/init`, `/bin/spawnprobe`, `/bin/libtest`). |
 | `make test` | Boot with `-append autotest`, run guest self-tests, shut down QEMU. |
 | `make run` | Interactive boot with VGA window and serial stdio. |
 | `make run-nographic` | Interactive boot over the serial console. |
@@ -65,24 +66,30 @@ line was not detected or was corrupted.
 | `kernel/exec/` | ELF64 loader, syscall dispatch, embedded user image. |
 | `kernel/shell/` | Guest self-test suite and interactive `hntsh`. |
 | `kernel/string.c` | Kernel string/memory helpers. |
-| `user/` | Ring-3 `crt0.S`, `init.c`, and user linker script. |
+| `lib/libhorizon/` | libHorizon Ring-3 runtime: shared syscall ABI, wrappers, string/memory, printf, I/O. |
+| `user/` | Ring-3 programs (`crt0.S`, `init.c`, `spawnprobe.c`, `libtest.c`) and user linker script. |
 | `linker.ld` | Higher-half kernel layout. |
 | `build/` | Generated objects and binaries; never commit or hand-edit. |
 
 ## Build system notes
 
 - Kernel C sources are listed in `K_C_SRCS`; assembly in `K_S_SRCS`; user
-  objects in `U_OBJS` / `SPAWNPROBE_OBJS` (`Makefile`).
+  program objects in `U_OBJS` / `SPAWNPROBE_OBJS` / `LIBTEST_OBJS`; libHorizon
+  sources in `LIBH_C_SRCS` / `LIBH_S_SRCS` (`Makefile`). The runtime is built
+  as `build/libhorizon.a` and linked into every user program.
 - Add any new kernel source to those lists, or it will not be compiled.
 - Kernel C flags include `-std=gnu11 -ffreestanding -Wall -Wextra -Werror`,
   `-mcmodel=kernel`, `-mno-red-zone`, and `-mno-mmx -mno-sse -mno-sse2`.
   Warnings are build failures.
 - Kernel assembly is compiled with only `-m64 -Iinclude`.
 - User code uses `UCFLAGS` and must remain freestanding; it cannot include
-  kernel headers or use libc.
-- `kernel/exec/embedded_user.S` embeds `build/init.elf` and
-  `build/spawnprobe.elf` with `.incbin`. Rebuild them via `make all`; do not
-  commit the generated binaries.
+  kernel headers or use a system libc. It includes libHorizon headers from
+  `lib/libhorizon/include`. `UCFLAGS` also disables MMX/SSE because the kernel
+  does not yet save/restore FPU/SIMD state; GCC must not emit those
+  instructions in Ring 3.
+- `kernel/exec/embedded_user.S` embeds `build/init.elf`,
+  `build/spawnprobe.elf`, and `build/libtest.elf` with `.incbin`. Rebuild them
+  via `make all`; do not commit the generated binaries.
 - Final kernel linking is `-nostdlib`. Avoid introducing dependencies on libc
   or compiler runtime helpers (for example 128-bit division or float
   formatting) unless the build system is updated deliberately.
@@ -147,10 +154,11 @@ rax = syscall number
 rdi, rsi, rdx, r10, r8 = arguments 1..5
 ```
 
-Syscall numbers and the `hnt_sysinfo_t` ABI live in
-`include/horizon/syscall.h`, dispatch lives in `kernel/exec/syscall.c`, and
-user-side numbers/wrappers are duplicated in `user/init.c` and `user/crt0.S`.
-Keep all copies in sync when adding or changing a syscall.
+Syscall numbers, access masks, VM flags, and the `hnt_sysinfo_t` layout live in
+`lib/libhorizon/include/horizon/abi.h`. Both `include/horizon/syscall.h` and
+the libHorizon user runtime include that header, so there is one ABI
+definition. Dispatch lives in `kernel/exec/syscall.c`; user wrappers and
+startup live in `lib/libhorizon/` and `user/crt0.S`.
 
 Validate user pointers with the existing range checks before reading or
 writing them on behalf of Ring-3.
@@ -188,14 +196,17 @@ writing them on behalf of Ring-3.
 - **New kernel subsystem/file:** add it to `K_C_SRCS` or `K_S_SRCS` in the
   `Makefile`, add its header under `include/horizon/`, and wire initialization
   into `kernel/kmain.c` in the correct order.
-- **New syscall:** add the number to `include/horizon/syscall.h`, implement it
-  in `kernel/exec/syscall.c`, update the user-side copy in `user/init.c`, and
-  consider an `int 0x80` path test as well as `syscall`.
+- **New syscall:** add the number to `lib/libhorizon/include/horizon/abi.h`,
+  implement it in `kernel/exec/syscall.c`, and add the typed user wrapper to
+  `lib/libhorizon/`. Consider an `int 0x80` path test as well as `syscall`.
 - **New kernel test:** add a `CHECK(...)` case to
   `horizon_run_self_tests()` in `kernel/shell/shell.c`. Tests must run under
-  `make test` and leave global state clean for later tests.
-- **New user behavior:** update `user/init.c`; it is rebuilt and embedded into
-  the kernel automatically by `make all`.
+  `make test` and leave global state clean for later tests. Keep the summary
+  count in this file and in `README.md`/`AGENTS.md` accurate.
+- **New user behavior:** build it on libHorizon (`hnt_*` wrappers, `hnt_printf`,
+  string helpers). Add the program to the `Makefile` user object list, embed
+  its ELF in `kernel/exec/embedded_user.S`, populate it into RamFS in
+  `kernel/kmain.c`, and add/extend a guest self-test for it.
 - **New object/device/file behavior:** use the existing object manager,
   handle-table access checks, and IRP dispatch rather than bypassing them.
 
@@ -204,7 +215,7 @@ writing them on behalf of Ring-3.
 Before finishing a change:
 
 1. Run `make clean && make all`. It must complete with no warnings or errors.
-2. Run `make test`. It must exit `0` and print `8 passed, 0 failed` and
+2. Run `make test`. It must exit `0` and print `9 passed, 0 failed` and
    `ALL_TESTS_PASSED`.
 3. If the change affects boot, interrupts, paging, scheduling, syscalls, or
    user mode, check the serial log for panics or unexpected output beyond the

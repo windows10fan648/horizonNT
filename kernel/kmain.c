@@ -16,6 +16,8 @@ extern const uint8_t embedded_init_elf_start[];
 extern const uint8_t embedded_init_elf_end[];
 extern const uint8_t embedded_spawnprobe_elf_start[];
 extern const uint8_t embedded_spawnprobe_elf_end[];
+extern const uint8_t embedded_libtest_elf_start[];
+extern const uint8_t embedded_libtest_elf_end[];
 
 static bool cmdline_has(const multiboot_info_t *mb, const char *needle) {
     if (!mb || !(mb->flags & MULTIBOOT_INFO_CMDLINE) || mb->cmdline == 0) return false;
@@ -72,12 +74,15 @@ void kmain(uint32_t mb_magic, const multiboot_info_t *mb_info) {
 
     size_t init_sz = (size_t)(embedded_init_elf_end - embedded_init_elf_start);
     size_t probe_sz = (size_t)(embedded_spawnprobe_elf_end - embedded_spawnprobe_elf_start);
+    size_t libtest_sz = (size_t)(embedded_libtest_elf_end - embedded_libtest_elf_start);
     KASSERT(NT_SUCCESS(fs_populate_file("/bin/init", embedded_init_elf_start, init_sz, true)));
     KASSERT(NT_SUCCESS(fs_populate_file("/bin/spawnprobe", embedded_spawnprobe_elf_start, probe_sz, true)));
+    KASSERT(NT_SUCCESS(fs_populate_file("/bin/libtest", embedded_libtest_elf_start, libtest_sz, true)));
     kprintf(ANSI_YELLOW "[OB/IO/FS] " ANSI_RESET
             "Object Manager, IRP Drivers, RamFS online "
-            ANSI_GRAY "(/bin/init = %zu B, /bin/spawnprobe = %zu B)" ANSI_RESET ".\n",
-            init_sz, probe_sz);
+            ANSI_GRAY "(/bin/init = %zu B, /bin/spawnprobe = %zu B, /bin/libtest = %zu B)"
+            ANSI_RESET ".\n",
+            init_sz, probe_sz, libtest_sz);
 
     ps_init();
     syscall_init();

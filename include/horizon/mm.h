@@ -17,11 +17,11 @@
 
 #define PTE_ADDR_MASK 0x000FFFFFFFFFF000ULL
 
-/* VMM abstract protection flags */
-#define VMM_READ   0x01
-#define VMM_WRITE  0x02
-#define VMM_EXEC   0x04
-#define VMM_USER   0x08
+/* VMM abstract protection flags, shared with libHorizon. */
+#define VMM_READ   HNT_VM_READ
+#define VMM_WRITE  HNT_VM_WRITE
+#define VMM_EXEC   HNT_VM_EXEC
+#define VMM_USER   HNT_VM_USER
 
 typedef struct {
     phys_addr_t pml4_phys;

@@ -137,6 +137,10 @@ bool horizon_run_self_tests(void) {
     repeat_ok = repeat_ok && (g_syscall_stack_misaligned == 0) && gdt_gs_state_valid();
     CHECK("Repeated Ring-3 launch & GS restoration", repeat_ok);
 
+    /* 9. libHorizon Ring-3 runtime: syscall wrappers, string/printf, VM & file I/O */
+    bool libh_ok = run_ring3_binary("/bin/libtest", 0);
+    CHECK("libHorizon Ring-3 runtime & I/O", libh_ok);
+
     const char *summary_color = failed ? ANSI_BRIGHT_RED : ANSI_BRIGHT_BLUE;
     kprintf("%s[TEST] Summary: %d passed, %d failed" ANSI_RESET "\n\n",
             summary_color, passed, failed);
