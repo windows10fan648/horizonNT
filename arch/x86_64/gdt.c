@@ -130,8 +130,10 @@ void gdt_init(void) {
         : "rax", "memory"
     );
 
-    wrmsr(MSR_GS_BASE, 0);
-    wrmsr(MSR_KERNEL_GS_BASE, (uint64_t)&g_percpu);
+    /* Kernel mode always runs with the per-CPU GS block active; user mode
+     * runs with GS base 0. Entry/exit paths swap between the two. */
+    wrmsr(MSR_GS_BASE, (uint64_t)&g_percpu);
+    wrmsr(MSR_KERNEL_GS_BASE, 0);
 }
 
 void tss_set_rsp0(uint64_t rsp0) {

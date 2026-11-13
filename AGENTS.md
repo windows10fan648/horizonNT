@@ -126,6 +126,11 @@ because the kernel heap can overwrite the string before `cmdline_has()` runs.
 - ISR stub generation uses GAS `.altmacro`. To concatenate a label prefix with
   an evaluated numeric expression, emit through a helper macro; a bare
   `.quad isr_stub_%i` fails with `invalid operands ... for '%'`.
+- Kernel mode runs with `GS_BASE = &g_percpu`; Ring 3 runs with
+  `GS_BASE = 0`. `syscall_entry`, ISR entry/exit for user frames, and
+  `uthread_enter_ring3` must keep that pairing intact with `swapgs`. A missing
+  swap on a user-entry path can fault in `syscall_entry` at `%gs:8` (CR2=8)
+  after a context switch out of a syscall.
 - The PIT runs at 250 Hz and drives preemption. Use `ps_sleep_ms()` or
   `ps_yield()` instead of busy-waiting when waiting from kernel code.
 - Protect shared state with `kspinlock_t`. Use `spin_lock_irqsave()` /

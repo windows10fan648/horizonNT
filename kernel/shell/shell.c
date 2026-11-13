@@ -97,11 +97,16 @@ bool horizon_run_self_tests(void) {
     }
     CHECK("Preemptive kernel multithreading", g_kthread_hits[0] == 5 && g_kthread_hits[1] == 5);
 
-    /* 6. Ring-3 ELF64 User Process + SYSCALL/SYSRET + int 0x80 */
-    kprocess_t *uproc = NULL;
-    st = elf_spawn_from_fs("/bin/init", &uproc);
-    bool user_ok = NT_SUCCESS(st) && uproc != NULL;
-    if (user_ok) {
+    /* 6. Ring-3 ELF64 User Process + SYSCALL/SYSRET + int 0x80.
+     * Launch twice: the second user thread starts after the first exits from
+     * a syscall context, which exercises GS-base restoration across switches. */
+    bool user_ok = true;
+    for (int run = 0; run < 2 && user_ok; run++) {
+        kprocess_t *uproc = NULL;
+        st = elf_spawn_from_fs("/bin/init", &uproc);
+        user_ok = NT_SUCCESS(st) && uproc != NULL;
+        if (!user_ok) break;
+
         for (int wait = 0; wait < 100 && !uproc->exited; wait++) {
             ps_sleep_ms(10);
         }

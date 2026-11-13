@@ -81,6 +81,11 @@ isr_common:
     pushq %r14
     pushq %r15
 
+    /* If the interrupted context was Ring 3, switch to the kernel GS block. */
+    testq $3, 144(%rsp)   /* saved CS */
+    jz 1f
+    swapgs
+1:
     movq %rsp, %rdi
     cld
     call isr_dispatch
@@ -102,6 +107,12 @@ isr_common:
     popq %rax
 
     addq $16, %rsp
+
+    /* Returning to Ring 3 restores the user GS block. */
+    testq $3, 8(%rsp)     /* saved CS */
+    jz 2f
+    swapgs
+2:
     iretq
 
 .section .rodata
@@ -159,4 +170,7 @@ uthread_enter_ring3:
     xorq %r13, %r13
     xorq %r14, %r14
     xorq %r15, %r15
+
+    /* Entering Ring 3: restore the user GS base. */
+    swapgs
     iretq
