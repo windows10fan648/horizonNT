@@ -151,7 +151,8 @@ void sched_dump_tasks(void) {
     /* Drop terminated threads so the listing reflects live tasks only. */
     sched_reap();
 
-    kprintf("%-5s %-5s %-18s %-14s %-8s %-4s %s\n",
+    kprintf(ANSI_BRIGHT_CYAN
+            "%-5s %-5s %-18s %-14s %-8s %-4s %s" ANSI_RESET "\n",
             "PID", "TID", "THREAD", "PROCESS", "STATE", "PRI", "TICKS");
     uint64_t flags = irq_save();
     for (kthread_t *t = g_thread_list; t; t = t->sched_next) {

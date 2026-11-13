@@ -94,6 +94,8 @@ int  serial_getc_nonblock(void);
 void vga_init(void);
 void vga_putc(char c);
 void vga_clear(void);
+void vga_set_attr(uint8_t attr);
+uint8_t vga_get_attr(void);
 
 void pit_init(uint32_t hz);
 uint64_t hal_get_ticks(void);

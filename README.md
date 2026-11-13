@@ -4,7 +4,7 @@
 
 ## Architecture Overview
 
-- **HAL (`arch/x86_64/`)**: Multiboot1 32-to-64-bit higher-half bootstrap (`0xFFFFFFFF80000000` kernel + `0xFFFF800000000000` HHDM), GDT + 64-bit TSS, 256-vector IDT, 8259 PIC, 250 Hz PIT timer, PS/2 keyboard, 16550 UART serial (`COM1`), VGA text console, and `SYSCALL`/`SYSRET` + `int 0x80` entry paths.
+- **HAL (`arch/x86_64/`)**: Multiboot1 32-to-64-bit higher-half bootstrap (`0xFFFFFFFF80000000` kernel + `0xFFFF800000000000` HHDM), GDT + 64-bit TSS, 256-vector IDT, 8259 PIC, 250 Hz PIT timer, PS/2 keyboard, 16550 UART serial (`COM1`), VGA text console with ANSI SGR color translation, and `SYSCALL`/`SYSRET` + `int 0x80` entry paths.
 - **Memory Manager (`kernel/mm/`)**:
   - **PMM**: Multiboot memory-map bitmap physical page allocator.
   - **VMM**: 4-level paging (`PML4 -> PDPT -> PD -> PT`), shared kernel higher-half + heap PDPT, and isolated per-process lower-half user address spaces.

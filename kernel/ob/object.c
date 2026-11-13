@@ -209,7 +209,9 @@ static void dump_dir_recursive(hnt_object_header_t *node, int depth) {
     for (int i = 0; i < depth; i++) kprintf("  ");
     const char *tname = (node->type < OBJ_TYPE_MAX && g_types[node->type].name)
                         ? g_types[node->type].name : "Unknown";
-    kprintf("%s [%s, refs=%d]\n", node->name, tname, node->ref_count);
+    kprintf("%s%s" ANSI_RESET " " ANSI_GRAY "[%s, refs=%d]" ANSI_RESET "\n",
+            node->type == OBJ_TYPE_DIRECTORY ? ANSI_BRIGHT_BLUE : ANSI_WHITE,
+            node->name, tname, node->ref_count);
     for (hnt_object_header_t *c = node->first_child; c; c = c->next_sibling) {
         dump_dir_recursive(c, depth + 1);
     }

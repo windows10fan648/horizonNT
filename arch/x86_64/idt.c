@@ -105,7 +105,9 @@ void isr_dispatch(interrupt_frame_t *frame) {
 
         if (from_user) {
             kprocess_t *proc = ps_current_process();
-            kprintf("\n[USER EXCEPTION] PID=%llu (%s) #%llu %s err=0x%llx rip=0x%llx rsp=0x%llx cr2=0x%llx\n",
+            kprintf(ANSI_BRIGHT_YELLOW
+                    "\n[USER EXCEPTION] PID=%llu (%s) #%llu %s"
+                    ANSI_RESET " err=0x%llx rip=0x%llx rsp=0x%llx cr2=0x%llx\n",
                     proc ? proc->pid : 0, proc ? proc->name : "?",
                     frame->int_no, name, frame->err_code, frame->rip, frame->rsp, cr2);
             if (proc) {
@@ -113,7 +115,8 @@ void isr_dispatch(interrupt_frame_t *frame) {
             }
         }
 
-        kprintf("\n=== KERNEL EXCEPTION #%llu: %s ===\n", frame->int_no, name);
+        kprintf(ANSI_BOLD ANSI_BRIGHT_RED "\n=== KERNEL EXCEPTION #%llu: %s ==="
+                ANSI_RESET "\n", frame->int_no, name);
         kprintf("ERR=0x%016llx RIP=0x%016llx CS=0x%04llx RFLAGS=0x%016llx\n",
                 frame->err_code, frame->rip, frame->cs, frame->rflags);
         kprintf("RSP=0x%016llx SS=0x%04llx  CR2=0x%016llx CR3=0x%016llx\n",

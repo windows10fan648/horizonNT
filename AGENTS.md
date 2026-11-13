@@ -176,6 +176,9 @@ writing them on behalf of Ring-3.
 - Prefer kernel helpers (`kprintf`, `memset`, `memcpy`, `strlen`, etc.) over
   libc. Do not include standard C library headers beyond compiler-provided
   `<stdint.h>`, `<stddef.h>`, `<stdbool.h>`, and `<stdarg.h>`.
+- Console colors use the `ANSI_*` macros from `<horizon/console.h>`.
+  `console_puts()` forwards SGR sequences to serial and translates them into
+  VGA text attributes; raw escape bytes must never reach the VGA buffer.
 - Keep existing formatting and naming; make focused changes instead of broad
   rewrites.
 - Do not remove or weaken assertions or self-tests to make a build pass.

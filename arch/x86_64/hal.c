@@ -37,8 +37,17 @@ int serial_getc_nonblock(void) {
 #define VGA_ADDR   ((volatile uint16_t *)PHYS_TO_VIRT(0xB8000ULL))
 #define VGA_COLOR  0x0F /* Bright White on Black */
 
-static size_t vga_row = 0;
-static size_t vga_col = 0;
+static size_t  vga_row = 0;
+static size_t  vga_col = 0;
+static uint8_t vga_attr = VGA_COLOR;
+
+void vga_set_attr(uint8_t attr) {
+    vga_attr = attr;
+}
+
+uint8_t vga_get_attr(void) {
+    return vga_attr;
+}
 
 static void vga_update_cursor(void) {
     uint16_t pos = (uint16_t)(vga_row * VGA_WIDTH + vga_col);
@@ -55,7 +64,7 @@ static void vga_scroll(void) {
             vga[(r - 1) * VGA_WIDTH + c] = vga[r * VGA_WIDTH + c];
         }
     }
-    uint16_t blank = (uint16_t)(' ' | (VGA_COLOR << 8));
+    uint16_t blank = (uint16_t)(' ' | (vga_attr << 8));
     for (size_t c = 0; c < VGA_WIDTH; c++) {
         vga[(VGA_HEIGHT - 1) * VGA_WIDTH + c] = blank;
     }
@@ -64,7 +73,8 @@ static void vga_scroll(void) {
 
 void vga_clear(void) {
     volatile uint16_t *vga = VGA_ADDR;
-    uint16_t blank = (uint16_t)(' ' | (VGA_COLOR << 8));
+    vga_attr = VGA_COLOR;
+    uint16_t blank = (uint16_t)(' ' | (vga_attr << 8));
     for (size_t i = 0; i < VGA_WIDTH * VGA_HEIGHT; i++) {
         vga[i] = blank;
     }
@@ -87,16 +97,16 @@ void vga_putc(char c) {
     } else if (c == '\b') {
         if (vga_col > 0) {
             vga_col--;
-            vga[vga_row * VGA_WIDTH + vga_col] = (uint16_t)(' ' | (VGA_COLOR << 8));
+            vga[vga_row * VGA_WIDTH + vga_col] = (uint16_t)(' ' | (vga_attr << 8));
         }
     } else if (c == '\t') {
         size_t next = (vga_col + 4) & ~3ULL;
         while (vga_col < next && vga_col < VGA_WIDTH) {
-            vga[vga_row * VGA_WIDTH + vga_col] = (uint16_t)(' ' | (VGA_COLOR << 8));
+            vga[vga_row * VGA_WIDTH + vga_col] = (uint16_t)(' ' | (vga_attr << 8));
             vga_col++;
         }
     } else {
-        vga[vga_row * VGA_WIDTH + vga_col] = (uint16_t)((uint8_t)c | (VGA_COLOR << 8));
+        vga[vga_row * VGA_WIDTH + vga_col] = (uint16_t)((uint8_t)c | (vga_attr << 8));
         vga_col++;
         if (vga_col >= VGA_WIDTH) {
             vga_col = 0;

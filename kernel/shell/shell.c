@@ -33,12 +33,21 @@ static bool run_ring3_binary(const char *path, int32_t expected_exit) {
 }
 
 bool horizon_run_self_tests(void) {
-    kprintf("\n[TEST] Running horizonNT kernel verification suite...\n");
+    kprintf("\n" ANSI_BRIGHT_BLUE
+            "[TEST] Running horizonNT kernel verification suite..."
+            ANSI_RESET "\n");
     int passed = 0, failed = 0;
 
+    /* Keep each status line a single colored span so the plain text stays
+     * grep-friendly in serial logs. */
     #define CHECK(name, cond) do { \
-        if (cond) { kprintf("  [PASS] %s\n", name); passed++; } \
-        else      { kprintf("  [FAIL] %s\n", name); failed++; } \
+        if (cond) { \
+            kprintf(ANSI_BRIGHT_GREEN "  [PASS] %s" ANSI_RESET "\n", name); \
+            passed++; \
+        } else { \
+            kprintf(ANSI_BRIGHT_RED "  [FAIL] %s" ANSI_RESET "\n", name); \
+            failed++; \
+        } \
     } while (0)
 
     /* 1. PMM */
@@ -128,7 +137,9 @@ bool horizon_run_self_tests(void) {
     repeat_ok = repeat_ok && (g_syscall_stack_misaligned == 0) && gdt_gs_state_valid();
     CHECK("Repeated Ring-3 launch & GS restoration", repeat_ok);
 
-    kprintf("[TEST] Summary: %d passed, %d failed\n\n", passed, failed);
+    const char *summary_color = failed ? ANSI_BRIGHT_RED : ANSI_BRIGHT_BLUE;
+    kprintf("%s[TEST] Summary: %d passed, %d failed" ANSI_RESET "\n\n",
+            summary_color, passed, failed);
     return failed == 0;
     #undef CHECK
 }
@@ -136,8 +147,10 @@ bool horizon_run_self_tests(void) {
 static void cmd_uname(void) {
     char brand[49];
     hal_cpu_brand(brand);
-    kprintf("horizonNT 0.1.0-x86_64 (Hybrid Object-Based Executive Kernel)\n");
-    kprintf("CPU: %s\n", brand);
+    kprintf(ANSI_BRIGHT_CYAN
+            "horizonNT 0.1.0-x86_64 (Hybrid Object-Based Executive Kernel)"
+            ANSI_RESET "\n");
+    kprintf(ANSI_GRAY "CPU: " ANSI_RESET "%s\n", brand);
 }
 
 static void cmd_mem(void) {
@@ -145,11 +158,13 @@ static void cmd_mem(void) {
     heap_stats_t heap;
     pmm_get_stats(&pmm);
     heap_get_stats(&heap);
-    kprintf("Physical Memory: %llu MiB total, %llu MiB free (%llu / %llu pages used)\n",
+    kprintf(ANSI_CYAN "Physical Memory: " ANSI_RESET
+            "%llu MiB total, %llu MiB free (%llu / %llu pages used)\n",
             pmm.total_bytes / (1024 * 1024),
             pmm.free_bytes / (1024 * 1024),
             pmm.used_pages, pmm.total_pages);
-    kprintf("Kernel Heap:     %zu KiB total, %zu KiB used, %zu KiB free (%zu active allocs)\n",
+    kprintf(ANSI_CYAN "Kernel Heap:     " ANSI_RESET
+            "%zu KiB total, %zu KiB used, %zu KiB free (%zu active allocs)\n",
             heap.heap_total / 1024, heap.heap_used / 1024,
             heap.heap_free / 1024, heap.alloc_count);
 }
@@ -158,7 +173,7 @@ static void cmd_ls(const char *path) {
     if (!path || path[0] == '\0') path = "/";
     fs_node_t *dir = fs_lookup(path);
     if (!dir) {
-        kprintf("ls: '%s' not found\n", path);
+        kprintf(ANSI_BRIGHT_RED "ls: '%s' not found" ANSI_RESET "\n", path);
         return;
     }
     if (dir->type != FS_NODE_DIR) {
@@ -167,22 +182,25 @@ static void cmd_ls(const char *path) {
     }
     for (fs_node_t *c = dir->first_child; c; c = c->next_sibling) {
         if (c->type == FS_NODE_DIR) {
-            kprintf("<DIR>  %s/\n", c->name);
+            kprintf(ANSI_BRIGHT_BLUE "<DIR>  %s/" ANSI_RESET "\n", c->name);
         } else {
-            kprintf("<FILE> %-18s %8zu bytes%s\n", c->name, c->size, c->readonly ? " [ro]" : "");
+            kprintf(ANSI_WHITE "<FILE> " ANSI_RESET "%-18s %8zu bytes"
+                    ANSI_YELLOW "%s" ANSI_RESET "\n",
+                    c->name, c->size, c->readonly ? " [ro]" : "");
         }
     }
 }
 
 static void cmd_cat(const char *path) {
     if (!path || path[0] == '\0') {
-        kprintf("usage: cat <path>\n");
+        kprintf(ANSI_YELLOW "usage: cat <path>" ANSI_RESET "\n");
         return;
     }
     HANDLE h = INVALID_HANDLE_VALUE;
     NTSTATUS st = io_open_file(path, GENERIC_READ, &h);
     if (!NT_SUCCESS(st)) {
-        kprintf("cat: failed to open '%s' (%s)\n", path, nt_status_str(st));
+        kprintf(ANSI_BRIGHT_RED "cat: failed to open '%s' (%s)" ANSI_RESET "\n",
+                path, nt_status_str(st));
         return;
     }
     char buf[256];
@@ -198,7 +216,7 @@ static void cmd_cat(const char *path) {
 static void cmd_write(const char *args) {
     while (*args == ' ') args++;
     if (*args == '\0') {
-        kprintf("usage: write <path> <text>\n");
+        kprintf(ANSI_YELLOW "usage: write <path> <text>" ANSI_RESET "\n");
         return;
     }
     char path[128];
@@ -212,16 +230,17 @@ static void cmd_write(const char *args) {
     HANDLE h = INVALID_HANDLE_VALUE;
     NTSTATUS st = io_open_file(path, GENERIC_WRITE, &h);
     if (!NT_SUCCESS(st)) {
-        kprintf("write: cannot open '%s' (%s)\n", path, nt_status_str(st));
+        kprintf(ANSI_BRIGHT_RED "write: cannot open '%s' (%s)" ANSI_RESET "\n",
+                path, nt_status_str(st));
         return;
     }
     size_t nw = 0;
     st = io_write_file(h, args, strlen(args), &nw);
     io_close_file(h);
     if (NT_SUCCESS(st)) {
-        kprintf("Wrote %zu bytes to %s\n", nw, path);
+        kprintf(ANSI_GREEN "Wrote %zu bytes to %s" ANSI_RESET "\n", nw, path);
     } else {
-        kprintf("write failed: %s\n", nt_status_str(st));
+        kprintf(ANSI_BRIGHT_RED "write failed: %s" ANSI_RESET "\n", nt_status_str(st));
     }
 }
 
@@ -230,13 +249,15 @@ static void cmd_spawn(const char *path) {
     kprocess_t *p = NULL;
     NTSTATUS st = elf_spawn_from_fs(path, &p);
     if (!NT_SUCCESS(st)) {
-        kprintf("spawn '%s' failed: %s\n", path, nt_status_str(st));
+        kprintf(ANSI_BRIGHT_RED "spawn '%s' failed: %s" ANSI_RESET "\n",
+                path, nt_status_str(st));
         return;
     }
     for (int i = 0; i < 100 && !p->exited; i++) {
         ps_sleep_ms(10);
     }
-    kprintf("Process '%s' (PID=%llu) exited with code %d\n", p->name, p->pid, p->exit_code);
+    kprintf(ANSI_GREEN "Process '%s' (PID=%llu) exited with code %d" ANSI_RESET "\n",
+            p->name, p->pid, p->exit_code);
 }
 
 static void read_line(char *buf, size_t max_len) {
@@ -262,11 +283,13 @@ static void read_line(char *buf, size_t max_len) {
 }
 
 void horizon_shell_run(void) {
-    kprintf("horizonNT Interactive Kernel Shell (hntsh). Type 'help' for commands.\n");
+    kprintf(ANSI_BRIGHT_CYAN
+            "horizonNT Interactive Kernel Shell (hntsh)."
+            ANSI_RESET " Type " ANSI_YELLOW "'help'" ANSI_RESET " for commands.\n");
     char line[256];
 
     for (;;) {
-        kprintf("hntsh> ");
+        kprintf(ANSI_BRIGHT_GREEN "hntsh>" ANSI_RESET " ");
         read_line(line, sizeof(line));
 
         char *cmd = line;
@@ -281,21 +304,35 @@ void horizon_shell_run(void) {
         }
 
         if (strcmp(cmd, "help") == 0) {
-            kprintf("Commands:\n");
-            kprintf("  help                Show this help\n");
-            kprintf("  uname               Show kernel & CPU info\n");
-            kprintf("  mem                 Show physical memory & heap usage\n");
-            kprintf("  obj                 Dump NT Object Manager namespace\n");
-            kprintf("  ps                  List processes & threads\n");
-            kprintf("  ls [path]           List VFS directory\n");
-            kprintf("  cat <path>          Print file contents\n");
-            kprintf("  write <path> <txt>  Write text to RamFS file\n");
-            kprintf("  spawn [path]        Run Ring-3 ELF64 binary (default /bin/init)\n");
-            kprintf("  test                Run kernel self-test suite\n");
-            kprintf("  uptime              Show ticks and uptime\n");
-            kprintf("  clear               Clear VGA screen\n");
-            kprintf("  reboot              Reboot system\n");
-            kprintf("  shutdown            Power off (QEMU ACPI)\n");
+            kprintf(ANSI_BRIGHT_WHITE "Commands:" ANSI_RESET "\n");
+            kprintf("  " ANSI_YELLOW "help" ANSI_RESET
+                    "                Show this help\n");
+            kprintf("  " ANSI_YELLOW "uname" ANSI_RESET
+                    "               Show kernel & CPU info\n");
+            kprintf("  " ANSI_YELLOW "mem" ANSI_RESET
+                    "                 Show physical memory & heap usage\n");
+            kprintf("  " ANSI_YELLOW "obj" ANSI_RESET
+                    "                 Dump NT Object Manager namespace\n");
+            kprintf("  " ANSI_YELLOW "ps" ANSI_RESET
+                    "                  List processes & threads\n");
+            kprintf("  " ANSI_YELLOW "ls" ANSI_RESET
+                    " [path]           List VFS directory\n");
+            kprintf("  " ANSI_YELLOW "cat" ANSI_RESET
+                    " <path>          Print file contents\n");
+            kprintf("  " ANSI_YELLOW "write" ANSI_RESET
+                    " <path> <txt>  Write text to RamFS file\n");
+            kprintf("  " ANSI_YELLOW "spawn" ANSI_RESET
+                    " [path]        Run Ring-3 ELF64 binary (default /bin/init)\n");
+            kprintf("  " ANSI_YELLOW "test" ANSI_RESET
+                    "                Run kernel self-test suite\n");
+            kprintf("  " ANSI_YELLOW "uptime" ANSI_RESET
+                    "              Show ticks and uptime\n");
+            kprintf("  " ANSI_YELLOW "clear" ANSI_RESET
+                    "               Clear VGA screen\n");
+            kprintf("  " ANSI_YELLOW "reboot" ANSI_RESET
+                    "              Reboot system\n");
+            kprintf("  " ANSI_YELLOW "shutdown" ANSI_RESET
+                    "            Power off (QEMU ACPI)\n");
         } else if (strcmp(cmd, "uname") == 0) {
             cmd_uname();
         } else if (strcmp(cmd, "mem") == 0) {
@@ -315,16 +352,19 @@ void horizon_shell_run(void) {
         } else if (strcmp(cmd, "test") == 0) {
             horizon_run_self_tests();
         } else if (strcmp(cmd, "uptime") == 0) {
-            kprintf("Uptime: %llu ms (%llu ticks @ 250 Hz)\n",
+            kprintf(ANSI_CYAN "Uptime: " ANSI_RESET
+                    "%llu ms (%llu ticks @ 250 Hz)\n",
                     hal_get_uptime_ms(), hal_get_ticks());
         } else if (strcmp(cmd, "clear") == 0) {
+            console_puts(ANSI_RESET);
             vga_clear();
         } else if (strcmp(cmd, "reboot") == 0) {
             hal_reboot();
         } else if (strcmp(cmd, "shutdown") == 0) {
             hal_shutdown();
         } else {
-            kprintf("Unknown command: '%s'. Type 'help'.\n", cmd);
+            kprintf(ANSI_BRIGHT_RED "Unknown command: '%s'. Type 'help'." ANSI_RESET "\n",
+                    cmd);
         }
     }
 }
